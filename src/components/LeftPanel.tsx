@@ -10,7 +10,7 @@ import {
   Calculator,
   Compass,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
 } from 'lucide-react';
 import { PanchangData, FestivalInfo } from '../types';
 import { findNextLunarPhaseOffset, STATIC_FESTIVALS } from '../utils/panchang';
@@ -54,6 +54,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
   const deitySplit = splitBilingual(currentNakshatraData.deity);
   const rulingPlanetSplit = splitBilingual(currentNakshatraData.rulingPlanet);
   const symbolSplit = splitBilingual(currentNakshatraData.symbolName);
+
 
   const formattedDate = new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-US', {
     weekday: 'long',
@@ -149,7 +150,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
           id="btn-minimize-left-panel"
           onClick={onToggleMinimize}
           className="p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition-colors shrink-0"
-          title={language === 'hi' ? 'पैनल छोटा करें' : 'Minimize panel'}
+          title={language === 'hi' ? 'पैनल बंद करें' : 'Close panel'}
         >
           <Minimize2 className="w-4 h-4" />
         </button>

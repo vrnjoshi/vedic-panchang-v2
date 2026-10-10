@@ -9,9 +9,10 @@ import { useLanguage } from '../context/LanguageContext';
 interface CelestialCanvasProps {
   panchang: PanchangData;
   offsetDays?: number;
+  isPlaying?: boolean;
 }
 
-export const CelestialCanvas: React.FC<CelestialCanvasProps> = ({ panchang, offsetDays = 0 }) => {
+export const CelestialCanvas: React.FC<CelestialCanvasProps> = ({ panchang, offsetDays = 0, isPlaying = false }) => {
   const { language } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -47,6 +48,12 @@ export const CelestialCanvas: React.FC<CelestialCanvasProps> = ({ panchang, offs
   const rotationVelocityRef = useRef({ x: 0, y: 0 });
   const targetSceneRotationRef = useRef({ x: 0.35, y: -0.4 });
   const targetCameraPosRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 16, 26));
+
+  // Refs for isPlaying camera transition
+  const isPlayingRef = useRef(isPlaying);
+  const wasSpeakingRef = useRef(false);
+  const initialDistanceRef = useRef(26);
+  const initialCamYRef = useRef(16);
 
   const orbitRadiusSun = 15;
   const orbitRadiusMoon = 5.4;
@@ -392,6 +399,10 @@ export const CelestialCanvas: React.FC<CelestialCanvasProps> = ({ panchang, offs
     const isMobile = width < 640 || width < height;
     const initialDistance = isMobile ? 38 : 26;
     const initialCamY = isMobile ? 22 : 16;
+
+    // Persist initial camera values for speaking-mode transitions
+    initialDistanceRef.current = initialDistance;
+    initialCamYRef.current = initialCamY;
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
     camera.position.set(0, initialCamY, initialDistance);
@@ -822,6 +833,24 @@ export const CelestialCanvas: React.FC<CelestialCanvasProps> = ({ panchang, offs
         activeNakshatraBeaconRef.current.material.rotation += 0.005;
       }
 
+      // isPlaying camera choreography: isometric documentary angle when playing, default when done
+      if (isPlayingRef.current) {
+        // Smoothly move to premium isometric documentary angle
+        wasSpeakingRef.current = true;
+        targetCameraPosRef.current.lerp(new THREE.Vector3(15, 25, 15), 0.04);
+        // Gently tilt scene to the natural watching angle
+        targetSceneRotationRef.current.x += (0.15 - targetSceneRotationRef.current.x) * 0.04;
+      } else if (wasSpeakingRef.current) {
+        // Smoothly return to default perspective after playback ends
+        const defaultPos = new THREE.Vector3(0, initialCamYRef.current, initialDistanceRef.current);
+        targetCameraPosRef.current.lerp(defaultPos, 0.04);
+        targetSceneRotationRef.current.x += (0.35 - targetSceneRotationRef.current.x) * 0.04;
+        // Stop interpolating once settled at default
+        if (targetCameraPosRef.current.distanceTo(defaultPos) < 0.1) {
+          wasSpeakingRef.current = false;
+        }
+      }
+
       if (cameraRef.current) {
         cameraRef.current.position.lerp(targetCameraPosRef.current, 0.06);
         cameraRef.current.lookAt(0, 0, 0);
@@ -858,6 +887,11 @@ export const CelestialCanvas: React.FC<CelestialCanvasProps> = ({ panchang, offs
       renderer.dispose();
     };
   }, []);
+
+  // Keep the ref in sync with the isPlaying prop for the animation loop closure
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   // Update Sun & Moon coordinates, Geocentric Lunar Sightline, Active Nakshatra Highlight & Sector
   useEffect(() => {
