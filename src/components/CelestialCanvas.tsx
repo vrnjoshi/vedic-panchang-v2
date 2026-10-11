@@ -10,9 +10,17 @@ interface CelestialCanvasProps {
   panchang: PanchangData;
   offsetDays?: number;
   isPlaying?: boolean;
+  subtitles?: string;
+  cameraFocus?: 'default' | 'moon' | 'sun' | 'nakshatra';
 }
 
-export const CelestialCanvas: React.FC<CelestialCanvasProps> = ({ panchang, offsetDays = 0, isPlaying = false }) => {
+export const CelestialCanvas: React.FC<CelestialCanvasProps> = ({
+  panchang,
+  offsetDays = 0,
+  isPlaying = false,
+  subtitles = '',
+  cameraFocus = 'default',
+}) => {
   const { language } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -49,8 +57,9 @@ export const CelestialCanvas: React.FC<CelestialCanvasProps> = ({ panchang, offs
   const targetSceneRotationRef = useRef({ x: 0.35, y: -0.4 });
   const targetCameraPosRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 16, 26));
 
-  // Refs for isPlaying camera transition
+  // Refs for camera choreography (kept in sync with props via useEffect)
   const isPlayingRef = useRef(isPlaying);
+  const cameraFocusRef = useRef(cameraFocus);
   const wasSpeakingRef = useRef(false);
   const initialDistanceRef = useRef(26);
   const initialCamYRef = useRef(16);
@@ -123,13 +132,13 @@ export const CelestialCanvas: React.FC<CelestialCanvasProps> = ({ panchang, offs
   // 3D Floating Badge Label explicitly marking "CURRENT NAKSHATRA / वर्तमान नक्षत्र"
   const createActiveLabelTexture = (lang: 'hi' | 'en', name: string, num: number) => {
     const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 140;
+    canvas.width = 640;
+    canvas.height = 180;
     const ctx = canvas.getContext('2d')!;
-    ctx.clearRect(0, 0, 512, 140);
+    ctx.clearRect(0, 0, 640, 180);
 
-    // Rounded background pill
-    const rx = 16, ry = 16, rw = 480, rh = 108, radius = 28;
+    // Rounded background pill with generous padding
+    const rx = 16, ry = 16, rw = 608, rh = 148, radius = 36;
     ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
     ctx.beginPath();
     ctx.roundRect ? ctx.roundRect(rx, ry, rw, rh, radius) : ctx.rect(rx, ry, rw, rh);
@@ -137,28 +146,28 @@ export const CelestialCanvas: React.FC<CelestialCanvasProps> = ({ panchang, offs
 
     // High-visibility golden border
     ctx.strokeStyle = '#fbbf24';
-    ctx.lineWidth = 6;
+    ctx.lineWidth = 8;
     ctx.stroke();
 
     // Pulsing indicator dot
     ctx.fillStyle = '#f59e0b';
     ctx.beginPath();
-    ctx.arc(60, 70, 14, 0, Math.PI * 2);
+    ctx.arc(72, 90, 18, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 4;
     ctx.stroke();
 
     // Title line: "CURRENT NAKSHATRA" or "वर्तमान सक्रिय नक्षत्र"
-    ctx.font = 'bold 30px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = '900 38px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.fillStyle = '#fbbf24';
     ctx.textAlign = 'left';
-    ctx.fillText(lang === 'hi' ? 'वर्तमान सक्रिय नक्षत्र' : 'CURRENT NAKSHATRA', 92, 54);
+    ctx.fillText(lang === 'hi' ? 'वर्तमान सक्रिय नक्षत्र' : 'CURRENT NAKSHATRA', 114, 70);
 
     // Subtitle line: "#{num}. {Name}"
-    ctx.font = 'bold 36px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = '900 48px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(`#${num}. ${name}`, 92, 98);
+    ctx.fillText(`#${num}. ${name}`, 114, 126);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.needsUpdate = true;
@@ -261,22 +270,22 @@ export const CelestialCanvas: React.FC<CelestialCanvasProps> = ({ panchang, offs
 
     // Devanagari Hindi Name
     ctx.save();
-    ctx.font = 'bold 54px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = 'bold 64px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.fillStyle = '#fef08a';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
     ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
     ctx.shadowBlur = 10;
     const hindiMetrics = ctx.measureText(hindiName);
-    const hindiAscent = hindiMetrics.actualBoundingBoxAscent || 38;
-    const hindiDescent = hindiMetrics.actualBoundingBoxDescent || 10;
+    const hindiAscent = hindiMetrics.actualBoundingBoxAscent || 44;
+    const hindiDescent = hindiMetrics.actualBoundingBoxDescent || 12;
     const hindiCenterY = 320 + (hindiAscent - hindiDescent) / 2;
     ctx.fillText(hindiName, 256, hindiCenterY);
     ctx.restore();
 
     // English Name & Lunar Mansion Number
     ctx.save();
-    ctx.font = '700 36px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = '700 44px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
@@ -284,9 +293,9 @@ export const CelestialCanvas: React.FC<CelestialCanvasProps> = ({ panchang, offs
     ctx.shadowBlur = 8;
     const englishLabel = `${index + 1}. ${englishName}`;
     const engMetrics = ctx.measureText(englishLabel);
-    const engAscent = engMetrics.actualBoundingBoxAscent || 26;
-    const engDescent = engMetrics.actualBoundingBoxDescent || 8;
-    const engCenterY = 392 + (engAscent - engDescent) / 2;
+    const engAscent = engMetrics.actualBoundingBoxAscent || 32;
+    const engDescent = engMetrics.actualBoundingBoxDescent || 10;
+    const engCenterY = 396 + (engAscent - engDescent) / 2;
     ctx.fillText(englishLabel, 256, engCenterY);
     ctx.restore();
 
@@ -353,7 +362,7 @@ export const CelestialCanvas: React.FC<CelestialCanvasProps> = ({ panchang, offs
         });
         const sprite = new THREE.Sprite(spriteMat);
         sprite.position.set(Math.cos(midRad) * badgeR, 0.3, -Math.sin(midRad) * badgeR);
-        sprite.scale.set(2.2, 2.2, 1);
+        sprite.scale.set(2.5, 2.5, 1);
         group.add(sprite);
         nakshatraSpritesRef.current.push(sprite);
       }
@@ -634,7 +643,7 @@ export const CelestialCanvas: React.FC<CelestialCanvasProps> = ({ panchang, offs
       depthWrite: false,
     });
     const labelSprite = new THREE.Sprite(labelMat);
-    labelSprite.scale.set(4.2, 1.15, 1);
+    labelSprite.scale.set(5.0, 1.4, 1);
     scene.add(labelSprite);
     activeNakshatraLabelRef.current = labelSprite;
 
@@ -833,19 +842,30 @@ export const CelestialCanvas: React.FC<CelestialCanvasProps> = ({ panchang, offs
         activeNakshatraBeaconRef.current.material.rotation += 0.005;
       }
 
-      // isPlaying camera choreography: isometric documentary angle when playing, default when done
-      if (isPlayingRef.current) {
-        // Smoothly move to premium isometric documentary angle
+      // ── Camera Choreography: driven by cameraFocusRef ──
+      const focus = cameraFocusRef.current;
+
+      if (focus !== 'default') {
         wasSpeakingRef.current = true;
-        targetCameraPosRef.current.lerp(new THREE.Vector3(15, 25, 15), 0.04);
-        // Gently tilt scene to the natural watching angle
-        targetSceneRotationRef.current.x += (0.15 - targetSceneRotationRef.current.x) * 0.04;
+
+        if (focus === 'moon') {
+          // Close fly-in near the moon's orbital region
+          targetCameraPosRef.current.lerp(new THREE.Vector3(0, 5, 9), 0.04);
+          targetSceneRotationRef.current.x += (0.1 - targetSceneRotationRef.current.x) * 0.04;
+        } else if (focus === 'sun') {
+          // Documentary angle looking across the sun
+          targetCameraPosRef.current.lerp(new THREE.Vector3(15, 25, 15), 0.04);
+          targetSceneRotationRef.current.x += (0.15 - targetSceneRotationRef.current.x) * 0.04;
+        } else if (focus === 'nakshatra') {
+          // Wide top-down view to reveal the full nakshatra ring
+          targetCameraPosRef.current.lerp(new THREE.Vector3(0, 44, 4), 0.04);
+          targetSceneRotationRef.current.x += (-Math.PI / 2.4 - targetSceneRotationRef.current.x) * 0.04;
+        }
       } else if (wasSpeakingRef.current) {
-        // Smoothly return to default perspective after playback ends
+        // Smoothly return to the default perspective after sequence ends
         const defaultPos = new THREE.Vector3(0, initialCamYRef.current, initialDistanceRef.current);
         targetCameraPosRef.current.lerp(defaultPos, 0.04);
         targetSceneRotationRef.current.x += (0.35 - targetSceneRotationRef.current.x) * 0.04;
-        // Stop interpolating once settled at default
         if (targetCameraPosRef.current.distanceTo(defaultPos) < 0.1) {
           wasSpeakingRef.current = false;
         }
@@ -888,10 +908,14 @@ export const CelestialCanvas: React.FC<CelestialCanvasProps> = ({ panchang, offs
     };
   }, []);
 
-  // Keep the ref in sync with the isPlaying prop for the animation loop closure
+  // Keep refs in sync with props for the animation loop closure
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
+
+  useEffect(() => {
+    cameraFocusRef.current = cameraFocus;
+  }, [cameraFocus]);
 
   // Update Sun & Moon coordinates, Geocentric Lunar Sightline, Active Nakshatra Highlight & Sector
   useEffect(() => {
@@ -1023,11 +1047,11 @@ export const CelestialCanvas: React.FC<CelestialCanvasProps> = ({ panchang, offs
     if (nakshatraSpritesRef.current.length === 27) {
       nakshatraSpritesRef.current.forEach((sprite, idx) => {
         if (idx === activeIdx) {
-          sprite.scale.set(3.4, 3.4, 1);
+          sprite.scale.set(3.8, 3.8, 1);
           sprite.material.opacity = 1.0;
         } else {
-          sprite.scale.set(2.0, 2.0, 1);
-          sprite.material.opacity = 0.72;
+          sprite.scale.set(2.3, 2.3, 1);
+          sprite.material.opacity = 0.75;
         }
       });
     }
@@ -1068,24 +1092,31 @@ export const CelestialCanvas: React.FC<CelestialCanvasProps> = ({ panchang, offs
         style={{ touchAction: 'none' }}
       />
 
-      {/* Floating Visual Key: Explains how Current Nakshatra is determined by the Earth -> Moon sightline */}
+      {/* Bottom info strip: shows AI subtitles during playback, static sightline label otherwise */}
       <div className="pointer-events-none absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 z-10 w-[94%] sm:w-auto max-w-lg text-center px-2 mb-[env(safe-area-inset-bottom,0px)]">
-        <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full bg-slate-950/90 backdrop-blur-md border border-cyan-500/30 text-[11px] sm:text-xs shadow-xl text-slate-200 text-left sm:text-center">
-          <span className="w-2 h-2 rounded-full bg-cyan-400 shrink-0 animate-ping" />
-          <span className="leading-snug break-words">
-            {language === 'hi' ? (
-              <>
-                <strong className="text-cyan-300 font-semibold">दृष्टि रेखा:</strong> पृथ्वी-चन्द्रमा की सीध नक्षत्र{' '}
-                <strong className="text-amber-300">{panchang.nakshatra.name}</strong> ({panchang.nakshatra.index + 1}वां, 13°20' क्षेत्र) के सम्मुख है
-              </>
-            ) : (
-              <>
-                <strong className="text-cyan-300 font-semibold">Lunar Sightline:</strong> Earth→Moon aligns with{' '}
-                <strong className="text-amber-300">{panchang.nakshatra.nameEn}</strong> (#{panchang.nakshatra.index + 1}, 13°20' sector)
-              </>
-            )}
-          </span>
-        </div>
+        {subtitles && isPlaying ? (
+          <div className="inline-flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-slate-950/90 backdrop-blur-md border border-sky-500/30 text-xs sm:text-sm font-semibold shadow-xl text-slate-100 text-center">
+            <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0 animate-pulse" />
+            <span className="leading-snug">{subtitles}</span>
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-2 sm:gap-2.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-full bg-slate-950/90 backdrop-blur-md border border-cyan-500/30 text-xs sm:text-sm font-semibold shadow-xl text-slate-200 text-left sm:text-center">
+            <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0 animate-ping" />
+            <span className="leading-snug break-words">
+              {language === 'hi' ? (
+                <>
+                  <strong className="text-cyan-300 font-bold">दृष्टि रेखा:</strong> पृथ्वी-चन्द्रमा की सीध नक्षत्र{' '}
+                  <strong className="text-amber-300 font-bold">{panchang.nakshatra.name}</strong> ({panchang.nakshatra.index + 1}वां, 13°20' क्षेत्र) के सम्मुख है
+                </>
+              ) : (
+                <>
+                  <strong className="text-cyan-300 font-bold">Lunar Sightline:</strong> Earth→Moon aligns with{' '}
+                  <strong className="text-amber-300 font-bold">{panchang.nakshatra.nameEn}</strong> (#{panchang.nakshatra.index + 1}, 13°20' sector)
+                </>
+              )}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

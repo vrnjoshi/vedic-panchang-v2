@@ -1,14 +1,15 @@
 'use client';
 
 import React from 'react';
-import { Play, Loader2, BookOpen, LayoutDashboardIcon, X } from 'lucide-react';
+import { Play, Loader2, LayoutDashboardIcon, X } from 'lucide-react';
 import { useLanguage, LanguageToggle } from '../context/LanguageContext';
 
 interface CinematicGuideBarProps {
   isFetching: boolean;
   isPlaying: boolean;
+  subtitles: string;
+  apiError?: string | null;
   onPlayGuide: () => void;
-  onOpenMathGuide: () => void;
   onTogglePanel: () => void;
   isPanelOpen: boolean;
 }
@@ -16,8 +17,9 @@ interface CinematicGuideBarProps {
 export const CinematicGuideBar: React.FC<CinematicGuideBarProps> = ({
   isFetching,
   isPlaying,
+  subtitles,
+  apiError,
   onPlayGuide,
-  onOpenMathGuide,
   onTogglePanel,
   isPanelOpen,
 }) => {
@@ -48,37 +50,23 @@ export const CinematicGuideBar: React.FC<CinematicGuideBarProps> = ({
             </span>
           </button>
 
-          {/* Top-right: Math guide + language toggle */}
+          {/* Top-right: language toggle */}
           <div
             id="top-right-controls"
-            className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 bg-slate-950/85 backdrop-blur-xl p-1 sm:p-1.5 rounded-2xl border border-white/10 shadow-2xl shadow-black/70 shrink-0"
+            className="pointer-events-auto flex items-center bg-slate-950/85 backdrop-blur-xl p-1 sm:p-1.5 rounded-2xl border border-white/10 shadow-2xl shadow-black/70 shrink-0"
           >
-            <button
-              id="btn-open-math-guide"
-              onClick={onOpenMathGuide}
-              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 hover:text-amber-200 text-xs font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shrink-0"
-              title={language === 'hi' ? 'सूत्र व्याख्या' : 'Learn Astronomical Formulas'}
-            >
-              <BookOpen className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="whitespace-nowrap">
-                {language === 'hi' ? 'सूत्र' : 'Math'}
-                <span className="hidden sm:inline"> {language === 'hi' ? 'सीखें' : 'Guide'}</span>
-              </span>
-            </button>
             <LanguageToggle size="sm" />
           </div>
         </div>
 
         {/* ── Bottom-center: Primary "Play Interactive Guide" CTA ── */}
-        <div className="flex justify-center w-full pb-1 sm:pb-2">
+        <div className="flex justify-center w-full pb-28 sm:pb-32">
           <div className="flex flex-col items-center gap-2">
-            {/* Status label that appears while audio is active */}
-            {isActive && (
-              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-950/90 border border-sky-500/30 text-sky-300 text-[11px] font-medium backdrop-blur-md shadow-lg animate-pulse">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-                {isFetching
-                  ? language === 'hi' ? 'ऑडियो तैयार हो रहा है…' : 'Preparing audio…'
-                  : language === 'hi' ? 'खगोलीय विवरण सुन रहे हैं…' : 'Playing celestial narration…'}
+            {/* AI-generated subtitles — shown strictly while playing */}
+            {isPlaying && subtitles && (
+              <div className="bg-[#070b16]/85 backdrop-blur-md px-5 py-3 rounded-xl border border-slate-700/50 text-slate-100 text-[11px] sm:text-xs font-medium shadow-lg max-w-sm sm:max-w-md text-center leading-relaxed">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse mr-2 align-middle shrink-0" />
+                {subtitles}
               </div>
             )}
 
@@ -95,7 +83,7 @@ export const CinematicGuideBar: React.FC<CinematicGuideBarProps> = ({
                   : 'bg-gradient-to-r from-amber-600/90 via-orange-500/90 to-amber-600/90 border-amber-400/50 text-white hover:from-amber-500 hover:via-orange-400 hover:to-amber-500 hover:scale-[1.04] hover:shadow-amber-500/20 active:scale-[0.98]'
                 }
               `}
-              title={language === 'hi' ? 'इंटरैक्टिव खगोल मार्गदर्शन सुनें' : 'Start the Interactive Celestial Guide'}
+              title={language === 'hi' ? 'आज का खगोलीय विवरण सुनें' : "Hear today's celestial narration"}
             >
               {/* Shimmer ring while active */}
               {isActive && (
@@ -124,19 +112,17 @@ export const CinematicGuideBar: React.FC<CinematicGuideBarProps> = ({
 
               <span className="leading-tight">
                 {isFetching
-                  ? language === 'hi' ? 'लोड हो रहा है…' : 'Loading…'
+                  ? language === 'hi' ? 'विवरण तैयार हो रहा है…' : 'Preparing guide...'
                   : isPlaying
                   ? language === 'hi' ? 'सुन रहे हैं' : 'Narrating'
-                  : language === 'hi' ? 'इंटरैक्टिव मार्गदर्शन' : 'Play Interactive Guide'}
+                  : language === 'hi' ? 'आज का खगोलीय विवरण सुनें' : "Hear today's celestial narration"}
               </span>
             </button>
 
-            {/* Subtle hint for new users — only shown when idle */}
-            {!isActive && (
-              <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium text-center pointer-events-none">
-                {language === 'hi'
-                  ? 'आज के खगोलीय विवरण को सुनें'
-                  : "Hear today's celestial narration"}
+            {/* Error display if apiError occurs */}
+            {apiError && (
+              <p className="text-[11px] sm:text-xs text-red-400 bg-red-950/80 border border-red-500/50 px-3 py-1 rounded-full animate-pulse font-medium text-center shadow-lg">
+                {apiError}
               </p>
             )}
           </div>

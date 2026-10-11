@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { LeftPanel } from '../src/components/LeftPanel';
 import { CinematicGuideBar } from '../src/components/CinematicGuideBar';
@@ -13,6 +13,8 @@ const CelestialCanvas = dynamic(
   () => import('../src/components/CelestialCanvas').then((mod) => mod.CelestialCanvas),
   { ssr: false }
 );
+
+type CameraFocus = 'default' | 'moon' | 'sun' | 'nakshatra';
 
 function HomeInner() {
   const { language } = useLanguage();
@@ -28,6 +30,14 @@ function HomeInner() {
   const [isFetching, setIsFetching] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
 
+  // AI-generated subtitle text and 3D camera focus target
+  const [subtitles, setSubtitles] = useState('');
+  const [cameraFocus, setCameraFocus] = useState<CameraFocus>('default');
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  // Store timeout IDs so we can clear them if audio ends early
+  const cameraTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
   const simulatedDate = useMemo(() => {
     const timeMs = baseDate.getTime() + offsetDays * 86400000;
     return new Date(timeMs);
@@ -37,54 +47,106 @@ function HomeInner() {
     return calculatePanchang(simulatedDate);
   }, [simulatedDate]);
 
-  // Lifted audio handler — split into fetch phase and play phase
+  const clearCameraTimeouts = () => {
+    cameraTimeoutsRef.current.forEach(clearTimeout);
+    cameraTimeoutsRef.current = [];
+  };
+
+  // Lifted audio handler — sends raw panchang data; Gemini authors the script
   const handlePlayGuide = useCallback(async () => {
     if (isFetching || isPlaying) return;
     setIsFetching(true);
+    setSubtitles('');
+    setCameraFocus('default');
 
     try {
-      const textToSpeak =
-        language === 'hi'
-          ? `वर्तमान में चन्द्रमा सूर्य से ${panchang.angles.relative.toFixed(1)} डिग्री आगे है। आज ${panchang.tithi.name} तिथि और ${panchang.nakshatra.name} नक्षत्र चल रहा है।`
-          : `Currently, the Moon is ${panchang.angles.relative.toFixed(1)} degrees ahead of the Sun. Today is ${panchang.tithi.nameEn} Tithi, and the active Nakshatra is ${panchang.nakshatra.nameEn}.`;
+      const dateStr = panchang.date.toLocaleDateString(language === 'hi' ? 'hi-IN' : 'en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
 
       const response = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: textToSpeak, language }),
+        body: JSON.stringify({
+          date: dateStr,
+          tithi: language === 'hi' ? panchang.tithi.name : panchang.tithi.nameEn,
+          nakshatra: language === 'hi' ? panchang.nakshatra.name : panchang.nakshatra.nameEn,
+          angle: panchang.angles.relative.toFixed(1),
+          language,
+        }),
       });
 
       const data = await response.json();
 
       if (data.audioBase64) {
         const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
-        // Transition from fetching → playing once audio is ready to output
+
+        // Set subtitles from the AI-generated script
+        if (data.generatedText) setSubtitles(data.generatedText);
+
+        // Transition: fetching → playing
         setIsFetching(false);
         setIsPlaying(true);
+
+        // ── Camera choreography sequence ──
+        // Immediately fly close to the Moon
+        setCameraFocus('moon');
+
+        // At 5s: pan to the Sun angle
+        const t1 = setTimeout(() => setCameraFocus('sun'), 5000);
+        // At 10s: pull back wide to show the nakshatra ring
+        const t2 = setTimeout(() => setCameraFocus('nakshatra'), 10000);
+        cameraTimeoutsRef.current = [t1, t2];
+
         audio.play();
-        audio.onended = () => setIsPlaying(false);
-        audio.onerror = () => setIsPlaying(false);
+
+        audio.onended = () => {
+          clearCameraTimeouts();
+          setCameraFocus('default');
+          setIsPlaying(false);
+        };
+        audio.onerror = () => {
+          clearCameraTimeouts();
+          setCameraFocus('default');
+          setIsPlaying(false);
+        };
       } else {
         throw new Error(data.error || 'No audio returned');
       }
     } catch (error) {
       console.error('Audio playback failed:', error);
+      clearCameraTimeouts();
+      setCameraFocus('default');
       setIsFetching(false);
       setIsPlaying(false);
+      setApiError('AI Guide is currently experiencing high demand. Please try again.');
+      setTimeout(() => {
+        setApiError(null);
+      }, 4000);
     }
   }, [isFetching, isPlaying, language, panchang]);
 
   return (
     <main className="relative w-screen h-[100dvh] overflow-hidden bg-[#070b16] text-slate-100 select-none">
       {/* 3D WebGL Canvas — full-screen hero */}
-      <CelestialCanvas panchang={panchang} offsetDays={offsetDays} isPlaying={isPlaying} />
+      <CelestialCanvas
+        panchang={panchang}
+        offsetDays={offsetDays}
+        isPlaying={isPlaying}
+        subtitles={subtitles}
+        cameraFocus={cameraFocus}
+      />
 
-      {/* Cinematic guide bar: centered CTA + top-right secondary controls */}
+      {/* Cinematic guide bar: centered CTA + top controls */}
       <CinematicGuideBar
         isFetching={isFetching}
         isPlaying={isPlaying}
+        subtitles={subtitles}
+        apiError={apiError}
         onPlayGuide={handlePlayGuide}
-        onOpenMathGuide={() => setIsMathGuideOpen(true)}
         onTogglePanel={() => setIsLeftPanelOpen((prev) => !prev)}
         isPanelOpen={isLeftPanelOpen}
       />

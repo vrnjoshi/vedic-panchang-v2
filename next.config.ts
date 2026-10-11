@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Hides the bottom-left dev routing indicator
+  devIndicators: false,
 };
 
 export default nextConfig;
